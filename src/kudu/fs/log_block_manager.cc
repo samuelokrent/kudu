@@ -48,6 +48,7 @@
 #include "kudu/util/locks.h"
 #include "kudu/util/malloc.h"
 #include "kudu/util/metrics.h"
+#include "kudu/util/monotime.h"
 #include "kudu/util/mutex.h"
 #include "kudu/util/path_util.h"
 #include "kudu/util/pb_util.h"
@@ -1841,6 +1842,7 @@ void LogBlockManager::OpenDataDir(DataDir* dir,
         "Could not list children of $0", dir->dir()));
     return;
   }
+  MonoTime last_opened_container_time = MonoTime::Now();
   for (const string& child : children) {
     string container_name;
     if (!TryStripSuffixString(
@@ -2013,6 +2015,14 @@ void LogBlockManager::OpenDataDir(DataDir* dir,
     local_report.stats.live_block_bytes_aligned += container->live_bytes_aligned();
     local_report.stats.live_block_count += container->live_blocks();
     local_report.stats.lbm_container_count++;
+
+    // Periodically log the number of opened containers so as to provide a progress update.
+    MonoTime now = MonoTime::Now();
+    if ((now - last_opened_container_time).ToSeconds() > 10) {
+      LOG(INFO) << Substitute("$0: opened $1 log block containers",
+                              dir->dir(), local_report.stats.lbm_container_count);
+      last_opened_container_time = now;
+    }
 
     next_block_id_.StoreMax(max_block_id + 1);
 
