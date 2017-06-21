@@ -1561,6 +1561,16 @@ class PosixEnv : public Env {
     return Status::OK();
   }
 
+  Status FileIsWorldReadable(const string& path, bool* result) OVERRIDE {
+    MAYBE_RETURN_EIO(path, IOError(Env::kInjectedFailureStatusMsg, EIO));
+    struct stat s;
+    if (stat(path.c_str(), &s) != 0) {
+      return IOError("stat", errno);
+    }
+    (*result) = (s.st_mode & S_IROTH) != 0;
+    return Status::OK();
+  }
+
  private:
   // unique_ptr Deleter implementation for fts_close
   struct FtsCloser {

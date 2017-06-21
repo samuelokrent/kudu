@@ -15,15 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include <memory>
+#include <string>
 
 #include "kudu/client/client.h"
 #include "kudu/client/client-test-util.h"
+#include "kudu/gutil/strings/substitute.h"
 #include "kudu/master/master.proxy.h"
+#include "kudu/master/mini_master.h"
 #include "kudu/integration-tests/external_mini_cluster.h"
 #include "kudu/tablet/key_value_test_schema.h"
 #include "kudu/rpc/messenger.h"
 #include "kudu/server/server_base.proxy.h"
+#include "kudu/util/env.h"
 #include "kudu/util/test_util.h"
 
 using kudu::client::KuduClient;
@@ -34,6 +41,9 @@ using kudu::client::KuduTable;
 using kudu::client::KuduTableCreator;
 using kudu::rpc::Messenger;
 using std::unique_ptr;
+using strings::Substitute;
+
+DECLARE_string(keytab_file);
 
 namespace kudu {
 
@@ -217,6 +227,19 @@ TEST_F(SecurityITest, TestDisableAuthenticationEncryption) {
   cluster_opts_.enable_kerberos = false;
   ASSERT_OK(StartCluster());
   NO_FATALS(SmokeTestCluster());
+}
+
+TEST_F(SecurityITest, TestWorldReadableKeytab) {
+  string kt_filename = GetTestPath("insecure.keytab");
+  unique_ptr<RWFile> kt_file;
+  ASSERT_OK(Env::Default()->NewRWFile(kt_filename, &kt_file));
+  chmod(kt_filename.c_str(), 0444);
+  FLAGS_keytab_file = kt_filename;
+  master::MiniMaster master(Env::Default(), GetTestPath("world_readable_keytab_master"), 0);
+  Status expected_status = Status::InvalidArgument(Substitute(
+      "cannot use keytab file with world-readable permissions: $0", kt_filename));
+  Status s = master.Start();
+  ASSERT_EQ(expected_status.ToString(), s.ToString());
 }
 
 } // namespace kudu

@@ -47,6 +47,7 @@
 #include "kudu/rpc/transfer.h"
 #include "kudu/security/tls_context.h"
 #include "kudu/security/token_verifier.h"
+#include "kudu/util/env.h"
 #include "kudu/util/errno.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/flag_validators.h"
@@ -93,6 +94,8 @@ DEFINE_string(rpc_ca_certificate_file, "",
               "Path to the PEM encoded X509 certificate of the trusted external "
               "certificate authority. The provided certificate should be the root "
               "issuer of the certificate passed in '--rpc_certificate_file'.");
+
+DECLARE_bool(allow_world_readable_private_keys);
 
 // Setting TLS certs and keys via CLI flags is only necessary for external
 // PKI-based security, which is not yet production ready. Instead, see
@@ -265,6 +268,16 @@ Status MessengerBuilder::Build(shared_ptr<Messenger> *msgr) {
     if (!FLAGS_rpc_certificate_file.empty()) {
       CHECK(!FLAGS_rpc_private_key_file.empty());
       CHECK(!FLAGS_rpc_ca_certificate_file.empty());
+
+      bool world_readable_private_key;
+      RETURN_NOT_OK(Env::Default()->FileIsWorldReadable(FLAGS_rpc_private_key_file,
+                                                      &world_readable_private_key));
+      if (world_readable_private_key && !FLAGS_allow_world_readable_private_keys) {
+        return Status::InvalidArgument(Substitute(
+            "cannot use private key file with world-readable permissions: $0",
+            FLAGS_rpc_private_key_file));
+      }
+
       // TODO(KUDU-1920): should we try and enforce that the server
       // is in the subject or alt names of the cert?
       RETURN_NOT_OK(tls_context->LoadCertificateAuthority(FLAGS_rpc_ca_certificate_file));

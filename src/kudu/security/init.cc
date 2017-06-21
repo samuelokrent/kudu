@@ -29,7 +29,9 @@
 
 #include <boost/optional.hpp>
 
+#include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/strings/util.h"
+#include "kudu/util/env.h"
 #include "kudu/util/flags.h"
 #include "kudu/util/flag_tags.h"
 #include "kudu/util/net/net_util.h"
@@ -53,12 +55,18 @@ TAG_FLAG(principal, experimental);
 // See KUDU-1884.
 TAG_FLAG(principal, unsafe);
 
+DEFINE_bool(allow_world_readable_private_keys, false,
+      "Enable this server to use keytab files and TLS private keys with "
+      "world-readable permissions.");
+TAG_FLAG(allow_world_readable_private_keys, unsafe);
+
 using std::mt19937;
 using std::random_device;
 using std::string;
 using std::uniform_int_distribution;
 using std::uniform_real_distribution;
 using std::vector;
+using strings::Substitute;
 
 namespace kudu {
 namespace security {
@@ -442,6 +450,14 @@ boost::optional<string> GetLoggedInUsernameFromKeytab() {
 
 Status InitKerberosForServer() {
   if (FLAGS_keytab_file.empty()) return Status::OK();
+
+  bool world_readable_keytab;
+  RETURN_NOT_OK(Env::Default()->FileIsWorldReadable(FLAGS_keytab_file, &world_readable_keytab));
+  if (world_readable_keytab && !FLAGS_allow_world_readable_private_keys) {
+    return Status::InvalidArgument(Substitute(
+        "cannot use keytab file with world-readable permissions: $0",
+        FLAGS_keytab_file));
+  }
 
   // Have the daemons use an in-memory ticket cache, so they don't accidentally
   // pick up credentials from test cases or any other daemon.
