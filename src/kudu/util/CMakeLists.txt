@@ -144,6 +144,7 @@ set(UTIL_SRCS
   hdr_histogram.cc
   hexdump.cc
   init.cc
+  jsonbuilder.cc
   jsonreader.cc
   jsonwriter.cc
   kernel_stack_watchdog.cc
@@ -351,6 +352,7 @@ ADD_KUDU_TEST(hdr_histogram-test)
 ADD_KUDU_TEST(inline_slice-test)
 ADD_KUDU_TEST(interval_tree-test)
 ADD_KUDU_TEST(jsonreader-test)
+ADD_KUDU_TEST(jsonbuilder-test)
 ADD_KUDU_TEST(knapsack_solver-test)
 ADD_KUDU_TEST(logging-test)
 ADD_KUDU_TEST(maintenance_manager-test)
